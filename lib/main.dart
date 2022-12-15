@@ -1,10 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:process_run/shell.dart';
-import 'package:sqlite3/sqlite3.dart';
-
+import 'package:go_router/go_router.dart';
 import 'daos/distributions_dao.dart';
+import 'models/distributions_entity.dart';
+import 'router/router.dart';
 import 'shell/create_shell_dialog.dart';
 import 'daos/common/sqlite_helper.dart';
 
@@ -17,12 +15,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    return MaterialApp.router(
+      routerConfig: router,
     );
   }
 }
@@ -36,14 +30,22 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  List<ProcessResult> _processResults = [];
+  List<DistributionEntity> _list = [];
   @override
   void initState() {
     SqliteHelper.instance.init();
     DistributionDao().createTable();
+    _query();
     super.initState();
+  }
+
+  void _query() async {
+    try {
+      _list = await DistributionDao().query('');
+      setState(() {});
+    } catch (e, s) {
+      //
+    }
   }
 
   void testSqlite3() async {
@@ -67,18 +69,14 @@ class _MyHomePageState extends State<MyHomePage> {
     // print(db.select('SELECT dart_version()'));
   }
 
-  void _incrementCounter() async {
-    // print(db.select('SELECT dart_version()'));
-    // var shell = Shell();
-    // final results = await shell.run('''
-    //   echo "hello world"
-    // ''');
-    // _processResults.addAll(results);
-    // setState(() {});
-    showDialog(
+  void _incrementCounter({int? id}) async {
+    final refresh = await showDialog(
       context: context,
-      builder: (_) => const CreateShellDialog(),
+      builder: (_) => CreateShellDialog(id: id),
     );
+    if (refresh != null && refresh) {
+      _query();
+    }
   }
 
   @override
@@ -93,17 +91,8 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: Column(
-        children: <Widget>[
-          Expanded(
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemBuilder: itemBuilder,
-              itemCount: _processResults.length,
-            ),
-          ),
-        ],
-      ),
+
+      body: _buildTable(),
       floatingActionButton: FloatingActionButton(
         onPressed: _incrementCounter,
         tooltip: 'Increment',
@@ -112,7 +101,112 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Widget itemBuilder(BuildContext context, int index) {
-    return Text(_processResults[index].stdout);
+  Widget _buildTable() {
+    return Table(
+      border: TableBorder.all(
+        color: Colors.grey,
+      ),
+      columnWidths: const <int, TableColumnWidth>{
+        0: FixedColumnWidth(60),
+        1: IntrinsicColumnWidth(flex: 1),
+        2: FixedColumnWidth(100),
+        3: FixedColumnWidth(100),
+        4: IntrinsicColumnWidth(flex: 1),
+        5: FixedColumnWidth(100),
+      },
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: <TableRow>[
+        _buildTableHeader(),
+        ..._list.map((item) => _buildRow(item)).toList()
+      ],
+    );
+  }
+
+  TableRow _buildRow(DistributionEntity entity) {
+    return TableRow(
+      children: [
+        TableCell(
+          child: Container(
+            height: 40,
+            alignment: Alignment.center,
+            child: Text(
+              '${entity.id}',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+        TableCell(
+          child: Text(
+            entity.name,
+            textAlign: TextAlign.center,
+          ),
+        ),
+        TableCell(
+          child: Text(
+            entity.platformText,
+            textAlign: TextAlign.center,
+          ),
+        ),
+        TableCell(
+          child: Text(
+            entity.env,
+            textAlign: TextAlign.center,
+          ),
+        ),
+        TableCell(
+          child: Text(
+            entity.workingDirectory,
+            textAlign: TextAlign.center,
+          ),
+        ),
+        TableCell(
+          child: Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                InkWell(
+                  onTap: () {
+                    context.goNamed('run', params: {'id': '${entity.id}'});
+                  },
+                  child: const Text('run'),
+                ),
+                InkWell(
+                  onTap: () => _incrementCounter(id: entity.id),
+                  child: const Text('edit'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  TableRow _buildTableHeader() {
+    return TableRow(
+      children: [
+        TableCell(child: _buildHeaderCell("ID")),
+        TableCell(child: _buildHeaderCell("Name")),
+        TableCell(child: _buildHeaderCell("Platform")),
+        TableCell(child: _buildHeaderCell("Env")),
+        TableCell(child: _buildHeaderCell("WorkingDirectory")),
+        TableCell(child: _buildHeaderCell("Operation")),
+      ],
+    );
+  }
+
+  Widget _buildHeaderCell(String headTitle) {
+    return Container(
+      color: Colors.grey[300],
+      height: 40,
+      alignment: Alignment.center,
+      child: Text(
+        headTitle,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
   }
 }
