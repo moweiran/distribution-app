@@ -1,0 +1,4 @@
+enum DistributionPlatform {
+  android,
+  ios,
+}
